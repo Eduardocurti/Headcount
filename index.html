@@ -924,6 +924,7 @@ function renderDashboardShell(){
               <span><span class="dot dot-green"></span>Na meta</span>
             </div>
             <button class="btn btn-secondary" id="btnSortDif">⇅ Ordenar por Diferença</button>
+            <button class="btn btn-primary" id="btnGerarBase">📋 Gerar Base</button>
             <button class="btn btn-secondary" id="btnExportImg">⬇ Exportar como imagem</button>
           </div>
         </div>
@@ -1065,6 +1066,7 @@ function renderDashboardShell(){
   };
 
   document.getElementById('btnExportImg').onclick = exportAsImage;
+  document.getElementById('btnGerarBase').onclick = gerarBaseAtivos;
 
   document.getElementById('btnSortDif').onclick = ()=>{
     if(state.sortDir === null) state.sortDir = 'desc';
@@ -1396,6 +1398,57 @@ function updateChartLTM(currentMetaTotal){
   chart.data.datasets[1].data = metaData;
   chart.data.datasets[2].data = orcadoData;
   chart.update();
+}
+
+/* =========================================================
+   11.5 GERAR BASE DE ATIVOS (Excel)
+   ========================================================= */
+function getActiveEmployeesForMonth(stores, year, month){
+  const targetKey = year*12 + month;
+  const seen = new Set();
+  const list = [];
+  for(const r of state.records){
+    if(!r.storeKey || !stores.includes(r.storeKey)) continue;
+    if(r.admissao && monthKey(r.admissao) > targetKey) continue;
+    if(r.rescisao && monthKey(r.rescisao) <= targetKey) continue;
+    const personKey = r.storeKey + '|' + normalize(r.nome);
+    if(seen.has(personKey)) continue;
+    seen.add(personKey);
+    list.push(r);
+  }
+  // Ordena por loja e depois por nome
+  list.sort((a,b)=> a.storeKey===b.storeKey ? a.nome.localeCompare(b.nome) : a.storeKey.localeCompare(b.storeKey));
+  return list;
+}
+
+function gerarBaseAtivos(){
+  const stores = STORE_KEYS.filter(k=>state.selectedStores.has(k));
+  if(!stores.length){
+    alert('Selecione ao menos uma loja no filtro de Lojas para gerar a base.');
+    return;
+  }
+  const {year, month} = state.selectedMonth;
+  const ativos = getActiveEmployeesForMonth(stores, year, month);
+  if(!ativos.length){
+    alert('Nenhum colaborador ativo encontrado para as lojas selecionadas nessa competência.');
+    return;
+  }
+  const AREA_LABEL = {lideranca:'Liderança', salao:'Salão e Delivery', cozinha:'Cozinha e Bar', outros:'Outros'};
+  const data = ativos.map(r=>({
+    'Loja': r.storeKey,
+    'Nome': r.nome,
+    'Cargo': r.cargo || '',
+    'Centro de Custo': r.centroCusto || '',
+    'Área': AREA_LABEL[classifyArea(r.centroCusto)],
+    'Dt Admissão': r.admissao ? fmtDateBR(r.admissao) : '',
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  // Larguras de coluna amigáveis
+  ws['!cols'] = [{wch:26},{wch:40},{wch:38},{wch:22},{wch:18},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ativos');
+  const compName = fmtMonth(year, month).replace('/','-');
+  XLSX.writeFile(wb, `BaseAtivos_${compName}.xlsx`);
 }
 
 /* =========================================================
