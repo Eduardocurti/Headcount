@@ -233,6 +233,42 @@
   }
   .btn-adjust{margin-top:10px;padding:6px 12px;font-size:11.5px;}
 
+  /* ---------- Diagnóstico ---------- */
+  .heatmap-table{border-collapse:collapse;font-size:12px;width:100%;min-width:820px;}
+  .heatmap-table th{background:var(--green);color:#fff;padding:8px 6px;font-size:11px;white-space:nowrap;}
+  .heatmap-table th.hm-loja{text-align:left;padding-left:12px;}
+  .heatmap-table td{
+    padding:7px 6px;text-align:center;border:2px solid #fff;
+    font-weight:700;font-family:'DM Mono',monospace;font-size:11.5px;border-radius:4px;
+  }
+  .heatmap-table td.hm-loja{
+    text-align:left;font-family:'DM Sans',sans-serif;font-weight:600;
+    background:var(--bg-soft);white-space:nowrap;padding-left:12px;font-size:12px;
+  }
+  .hm-100{background:#0A6B2C;color:#fff;}
+  .hm-90{background:rgba(10,107,44,0.25);color:#0A6B2C;}
+  .hm-75{background:rgba(255,80,40,0.25);color:#b23a1c;}
+  .hm-low{background:#FF5028;color:#fff;}
+  .hm-na{background:#f0f0f0;color:#999;font-weight:400;}
+  .diag-legend{display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin-top:12px;flex-wrap:wrap;}
+  .diag-legend .chip{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px;}
+  .insight-item{
+    display:flex;gap:10px;padding:11px 14px;border-radius:var(--radius-sm);
+    margin-bottom:8px;font-size:13px;align-items:flex-start;line-height:1.45;
+  }
+  .insight-high{background:var(--orange-bg);}
+  .insight-med{background:rgba(201,162,39,0.12);}
+  .insight-ok{background:var(--green-bg);}
+  .insight-item .dot{flex:0 0 auto;margin-top:5px;}
+  .mgr-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px;}
+  .mgr-table th{background:var(--green);color:#fff;padding:9px 8px;font-size:11.5px;white-space:nowrap;}
+  .mgr-table td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--green-border);}
+  .mgr-table tbody tr:hover{background:var(--green-bg);}
+  .mgr-table td.loja-cell{text-align:left;font-weight:600;white-space:nowrap;padding-left:12px;}
+  .trend-up{color:var(--green);font-weight:700;}
+  .trend-down{color:var(--orange);font-weight:700;}
+  .trend-flat{color:var(--muted);font-weight:700;}
+
   /* ---------- Modal de seleção ---------- */
   .modal-overlay{
     position:fixed;inset:0;background:rgba(13,20,18,0.45);z-index:100;
@@ -901,6 +937,7 @@ function renderDashboardShell(){
     <div class="tabs-nav">
       <button class="tab-btn" data-tab="headcount">Headcount Ops</button>
       <button class="tab-btn" data-tab="turnover">Turnover</button>
+      <button class="tab-btn" data-tab="diagnostico">Diagnóstico</button>
     </div>
 
     <div class="card filters-card">
@@ -1063,10 +1100,28 @@ function renderDashboardShell(){
       </div>
 
       <div class="charts-row">
-        <div class="card chart-card chart-full">
+        <div class="card chart-card chart-half">
+          <h3>Tempo de Casa dos Desligados</h3>
+          <p class="chart-sub">Distribuição percentual · últimos 12 meses</p>
+          <div class="chart-wrap"><canvas id="chartTenurePie"></canvas></div>
+        </div>
+        <div class="card chart-card chart-half">
           <h3>Desligamentos por Tempo de Casa</h3>
-          <p class="chart-sub">Últimos 12 meses, lojas filtradas</p>
+          <p class="chart-sub">Quantidades · últimos 12 meses</p>
           <div class="chart-wrap"><canvas id="chartTenure"></canvas></div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="card chart-card chart-half">
+          <h3>Desligamentos por Área</h3>
+          <p class="chart-sub">Liderança · Salão e Delivery · Cozinha e Bar · últimos 12 meses</p>
+          <div class="chart-wrap"><canvas id="chartDemArea"></canvas></div>
+        </div>
+        <div class="card chart-card chart-half">
+          <h3>Tempo Médio de Casa dos Desligados</h3>
+          <p class="chart-sub">Média em meses de quem saiu, mês a mês (LTM)</p>
+          <div class="chart-wrap"><canvas id="chartAvgTenure"></canvas></div>
         </div>
       </div>
 
@@ -1080,6 +1135,60 @@ function renderDashboardShell(){
           <h3>Desligamentos por Cargo</h3>
           <p class="chart-sub">Últimos 12 meses · top cargos com mais saídas</p>
           <div class="chart-wrap"><canvas id="chartByCargo"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabPanelDiagnostico" style="display:none;">
+      <div class="kpi-grid">
+        <div class="card kpi-card">
+          <div class="kpi-label">Fechamento Médio do Quadro</div>
+          <div class="kpi-value mono" id="diagFechamento">-</div>
+          <div class="kpi-sub">Média do % Real ÷ Meta no mês</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Lojas na Meta</div>
+          <div class="kpi-value mono positive" id="diagNaMeta">-</div>
+          <div class="kpi-sub">≥ 100% do quadro</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Lojas em Atenção</div>
+          <div class="kpi-value mono" id="diagAtencao" style="color:#c9a227;">-</div>
+          <div class="kpi-sub">Entre 85% e 99% do quadro</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Lojas Críticas</div>
+          <div class="kpi-value mono negative" id="diagCriticas">-</div>
+          <div class="kpi-sub">Abaixo de 85% do quadro</div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:20px;margin-bottom:16px;">
+        <h3 style="margin:0 0 4px;font-size:16px;">Evolução do Fechamento do Quadro — <span id="diagYearLabel"></span></h3>
+        <p class="chart-sub" style="margin:0 0 14px;">% de atingimento (Real ÷ Meta) por loja, mês a mês, até a competência selecionada</p>
+        <div class="table-scroll">
+          <table class="heatmap-table" id="diagHeatmap"></table>
+        </div>
+        <div class="diag-legend">
+          <span><span class="chip" style="background:#0A6B2C;"></span>≥ 100% (na meta)</span>
+          <span><span class="chip" style="background:rgba(10,107,44,0.25);"></span>90% a 99%</span>
+          <span><span class="chip" style="background:rgba(255,80,40,0.25);"></span>75% a 89%</span>
+          <span><span class="chip" style="background:#FF5028;"></span>&lt; 75% (crítico)</span>
+          <span><span class="chip" style="background:#f0f0f0;"></span>Sem meta / sem dados</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:20px;margin-bottom:16px;">
+        <h3 style="margin:0 0 4px;font-size:16px;">Pontos de Alerta</h3>
+        <p class="chart-sub" style="margin:0 0 14px;">Sinais identificados automaticamente na competência e no acumulado do ano</p>
+        <div id="diagInsights"></div>
+      </div>
+
+      <div class="card" style="padding:20px;">
+        <h3 style="margin:0 0 4px;font-size:16px;">Eficiência de Gestão por Loja — Contratação e Retenção <span id="diagYearLabel2"></span></h3>
+        <p class="chart-sub" style="margin:0 0 14px;">Acumulado do ano até a competência selecionada · ordenado do mais crítico ao melhor fechamento</p>
+        <div class="table-scroll">
+          <table class="mgr-table" id="diagManagerTable"></table>
         </div>
       </div>
     </div>
@@ -1156,18 +1265,17 @@ function renderDashboardShell(){
   updateSortButtonLabel();
 
   // Tabs
+  const TAB_PANELS = {headcount:'tabPanelHeadcount', turnover:'tabPanelTurnover', diagnostico:'tabPanelDiagnostico'};
   const tabBtns = dash.querySelectorAll('.tab-btn');
-  tabBtns.forEach(btn=>{
-    btn.classList.toggle('active', btn.dataset.tab === state.activeTab);
-    btn.onclick = ()=>{
-      state.activeTab = btn.dataset.tab;
-      tabBtns.forEach(b=>b.classList.toggle('active', b===btn));
-      document.getElementById('tabPanelHeadcount').style.display = state.activeTab==='headcount' ? 'block' : 'none';
-      document.getElementById('tabPanelTurnover').style.display = state.activeTab==='turnover' ? 'block' : 'none';
-    };
-  });
-  document.getElementById('tabPanelHeadcount').style.display = state.activeTab==='headcount' ? 'block' : 'none';
-  document.getElementById('tabPanelTurnover').style.display = state.activeTab==='turnover' ? 'block' : 'none';
+  function showTab(tab){
+    state.activeTab = tab;
+    tabBtns.forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+    Object.entries(TAB_PANELS).forEach(([k,id])=>{
+      document.getElementById(id).style.display = k===tab ? 'block' : 'none';
+    });
+  }
+  tabBtns.forEach(btn=>{ btn.onclick = ()=>showTab(btn.dataset.tab); });
+  showTab(state.activeTab);
 
   initCharts();
   initTurnoverCharts();
@@ -1359,6 +1467,7 @@ function recalcAll(){
   updateChartPct(totalMeta, totalReal);
   updateChartLTM(totalMeta.total);
   recalcTurnover();
+  recalcDiagnostico();
 
   document.getElementById('exportHeaderSub').textContent =
     `${fmtMonth(state.selectedMonth.year, state.selectedMonth.month)} · ${rows.length} loja(s) · gerado em ${fmtDateBR(new Date())}`;
@@ -1598,6 +1707,68 @@ function initTurnoverCharts(){
     }
   });
 
+  const TENURE_COLORS = ['#FF5028','#f0812e','#c9a227','#0d8436','#0A6B2C','#6A4C93','#8a9a94'];
+  const pieCtx = document.getElementById('chartTenurePie').getContext('2d');
+  state.charts.tenurePie = new Chart(pieCtx, {
+    type:'doughnut',
+    data:{
+      labels:TENURE_BUCKETS,
+      datasets:[{ data:[0,0,0,0,0,0,0], backgroundColor:TENURE_COLORS, borderColor:'#fff', borderWidth:2 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom', labels:{font:{family:'DM Sans', size:11}, boxWidth:12}},
+        tooltip:{
+          callbacks:{
+            label: function(ctx){
+              const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+              const pct = total>0 ? Math.round((ctx.parsed/total)*100) : 0;
+              return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const demAreaCtx = document.getElementById('chartDemArea').getContext('2d');
+  state.charts.demArea = new Chart(demAreaCtx, {
+    type:'bar',
+    data:{
+      labels:['Liderança','Salão e Delivery','Cozinha e Bar','Outros'],
+      datasets:[{ label:'Desligamentos', data:[0,0,0,0], backgroundColor:['#6A4C93','#FF5028','#0A6B2C','#8a9a94'], borderRadius:4 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ top:18 } },
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ beginAtZero:true, ticks:{precision:0}, grid:{color:'rgba(10,107,44,0.08)'} }, x:{ grid:{display:false} } }
+    },
+    plugins:[valueLabelPlugin('')]
+  });
+
+  const avgTenureCtx = document.getElementById('chartAvgTenure').getContext('2d');
+  state.charts.avgTenure = new Chart(avgTenureCtx, {
+    type:'line',
+    data:{
+      labels:[],
+      datasets:[{
+        label:'Tempo médio de casa (meses)', data:[],
+        borderColor:'#0A6B2C', backgroundColor:'rgba(10,107,44,0.10)',
+        borderWidth:2, pointRadius:3, pointBackgroundColor:'#0A6B2C', fill:true, tension:0.3
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{ callbacks:{ label: ctx=>` ${ctx.parsed.y} meses de casa (média)` } }
+      },
+      scales:{ y:{ beginAtZero:true, grid:{color:'rgba(10,107,44,0.08)'}, title:{display:true,text:'Meses'} }, x:{ grid:{display:false} } }
+    }
+  });
+
   const storeCtx = document.getElementById('chartByStore').getContext('2d');
   state.charts.byStore = new Chart(storeCtx, {
     type:'bar',
@@ -1664,11 +1835,34 @@ function recalcTurnover(){
   // Desligamentos na janela de 12 meses (base para os demais gráficos)
   const dismissals = getDismissalsInWindow(stores, year, month, 12);
 
-  // Por tempo de casa
+  // Por tempo de casa (barras + pizza)
   const tenureCounts = TENURE_BUCKETS.reduce((acc,b)=>{acc[b]=0; return acc;}, {});
   dismissals.forEach(r=>{ tenureCounts[tenureBucket(tenureMonths(r))]++; });
-  state.charts.tenure.data.datasets[0].data = TENURE_BUCKETS.map(b=>tenureCounts[b]);
+  const tenureData = TENURE_BUCKETS.map(b=>tenureCounts[b]);
+  state.charts.tenure.data.datasets[0].data = tenureData;
   state.charts.tenure.update();
+  state.charts.tenurePie.data.datasets[0].data = tenureData;
+  state.charts.tenurePie.update();
+
+  // Por área
+  const areaCounts = {lideranca:0, salao:0, cozinha:0, outros:0};
+  dismissals.forEach(r=>{ areaCounts[classifyArea(r.centroCusto)]++; });
+  state.charts.demArea.data.datasets[0].data = [areaCounts.lideranca, areaCounts.salao, areaCounts.cozinha, areaCounts.outros];
+  state.charts.demArea.update();
+
+  // Tempo médio de casa dos desligados, mês a mês (LTM)
+  const avgLabels = [], avgData = [];
+  for(let i=11;i>=0;i--){
+    const {year:y, month:m} = monthsBack(year, month, i);
+    avgLabels.push(fmtMonth(y,m));
+    const monthDismissals = getDismissalsInWindow(stores, y, m, 1);
+    const tenures = monthDismissals.map(tenureMonths).filter(t=>t!==null);
+    const avg = tenures.length ? tenures.reduce((a,b)=>a+b,0)/tenures.length : null;
+    avgData.push(avg!==null ? Number(avg.toFixed(1)) : null);
+  }
+  state.charts.avgTenure.data.labels = avgLabels;
+  state.charts.avgTenure.data.datasets[0].data = avgData;
+  state.charts.avgTenure.update();
 
   // Por loja
   const byStoreMap = countByKey(dismissals, r=>r.storeKey);
@@ -1689,6 +1883,184 @@ function recalcTurnover(){
   state.charts.byCargo.data.labels = cargoEntries.map(e=>e.label);
   state.charts.byCargo.data.datasets[0].data = cargoEntries.map(e=>e.value);
   state.charts.byCargo.update();
+}
+
+/* =========================================================
+   14.4 DIAGNÓSTICO DO QUADRO
+   ========================================================= */
+function pctQuadro(storeKey, year, month){
+  const mTotal = metaTotalForMonth(storeKey, year, month);
+  if(mTotal <= 0) return null;
+  const real = getCountsForStoreMonth(storeKey, year, month).total;
+  return (real / mTotal) * 100;
+}
+
+function hmClass(pct){
+  if(pct === null) return 'hm-na';
+  if(pct >= 100) return 'hm-100';
+  if(pct >= 90) return 'hm-90';
+  if(pct >= 75) return 'hm-75';
+  return 'hm-low';
+}
+
+function getAdmissoesYTDStore(storeKey, year, month){
+  const seen = new Set(); let count = 0;
+  state.records.forEach(r=>{
+    if(r.storeKey !== storeKey) return;
+    if(!r.admissao || r.admissao.getFullYear() !== year || r.admissao.getMonth() > month) return;
+    const key = admEventKey(r);
+    if(seen.has(key) || state.excludedAdm.has(key)) return;
+    seen.add(key); count++;
+  });
+  return count;
+}
+
+function recalcDiagnostico(){
+  const heatEl = document.getElementById('diagHeatmap');
+  if(!heatEl) return;
+  const stores = STORE_KEYS.filter(k=>state.selectedStores.has(k));
+  const {year, month} = state.selectedMonth;
+  const monthsArr = [];
+  for(let m=0; m<=month; m++) monthsArr.push(m);
+
+  document.getElementById('diagYearLabel').textContent = year;
+  document.getElementById('diagYearLabel2').textContent = '— ' + year;
+
+  // ---- Dados por loja ----
+  const storeData = stores.map(storeKey=>{
+    const pcts = monthsArr.map(m=>pctQuadro(storeKey, year, m));
+    const validPcts = pcts.filter(p=>p!==null);
+    const avgPct = validPcts.length ? validPcts.reduce((a,b)=>a+b,0)/validPcts.length : null;
+    const currentPct = pcts[pcts.length-1];
+    const firstValid = pcts.find(p=>p!==null);
+    const trend = (currentPct!==null && firstValid!==undefined && firstValid!==null) ? currentPct - firstValid : null;
+
+    const adm = getAdmissoesYTDStore(storeKey, year, month);
+    const demList = getDismissalsInWindow([storeKey], year, month, month+1);
+    const dem = demList.length;
+    const tenures = demList.map(tenureMonths).filter(t=>t!==null);
+    const early = tenures.filter(t=>t<3).length;
+    const earlyPct = dem>0 ? (early/dem)*100 : null;
+
+    // meses consecutivos abaixo de 90% (contando de trás pra frente)
+    let consecBelow = 0;
+    for(let i=pcts.length-1; i>=0; i--){
+      if(pcts[i]!==null && pcts[i] < 90) consecBelow++;
+      else break;
+    }
+
+    const hasAnyData = validPcts.length > 0 || adm > 0 || dem > 0;
+    return {storeKey, pcts, avgPct, currentPct, trend, adm, dem, earlyPct, early, consecBelow, hasAnyData};
+  }).filter(s=>s.hasAnyData);
+
+  // ---- KPIs do mês selecionado ----
+  const withCurrent = storeData.filter(s=>s.currentPct!==null);
+  const fechMedio = withCurrent.length ? withCurrent.reduce((a,s)=>a+s.currentPct,0)/withCurrent.length : 0;
+  const naMeta = withCurrent.filter(s=>s.currentPct>=100).length;
+  const atencao = withCurrent.filter(s=>s.currentPct>=85 && s.currentPct<100).length;
+  const criticas = withCurrent.filter(s=>s.currentPct<85).length;
+  document.getElementById('diagFechamento').textContent = fmtPct(fechMedio);
+  document.getElementById('diagNaMeta').textContent = `${naMeta} de ${withCurrent.length}`;
+  document.getElementById('diagAtencao').textContent = `${atencao} de ${withCurrent.length}`;
+  document.getElementById('diagCriticas').textContent = `${criticas} de ${withCurrent.length}`;
+
+  // ---- Heatmap ----
+  let head = '<thead><tr><th class="hm-loja">LOJA</th>';
+  monthsArr.forEach(m=>{ head += `<th>${MONTH_ABBR[m]}</th>`; });
+  head += '<th>MÉDIA</th></tr></thead>';
+  let body = '<tbody>';
+  // Ordena do pior % atual para o melhor (ofensores no topo)
+  const sorted = [...storeData].sort((a,b)=>{
+    const av = a.currentPct===null ? 999 : a.currentPct;
+    const bv = b.currentPct===null ? 999 : b.currentPct;
+    return av - bv;
+  });
+  sorted.forEach(s=>{
+    body += `<tr><td class="hm-loja">${s.storeKey}</td>`;
+    s.pcts.forEach(p=>{
+      body += `<td class="${hmClass(p)}">${p===null?'–':Math.round(p)+'%'}</td>`;
+    });
+    body += `<td class="${hmClass(s.avgPct)}">${s.avgPct===null?'–':Math.round(s.avgPct)+'%'}</td></tr>`;
+  });
+  body += '</tbody>';
+  heatEl.innerHTML = head + body;
+
+  // ---- Pontos de alerta (regras automáticas) ----
+  const insights = [];
+  storeData.forEach(s=>{
+    if(s.consecBelow >= 3){
+      insights.push({level:'high', text:`<b>${s.storeKey}</b> está há <b>${s.consecBelow} meses consecutivos</b> abaixo de 90% do quadro — atenção prioritária de recrutamento.`});
+    }
+    if(s.dem > s.adm && s.dem >= 3){
+      insights.push({level:'high', text:`<b>${s.storeKey}</b> desligou mais do que contratou no ano (${s.dem} saídas × ${s.adm} entradas) — quadro encolhendo.`});
+    }
+    if(s.earlyPct !== null && s.earlyPct >= 40 && s.dem >= 3){
+      insights.push({level:'med', text:`<b>${s.storeKey}</b>: ${Math.round(s.earlyPct)}% dos desligados do ano saíram com menos de 3 meses de casa (${s.early} de ${s.dem}) — indicativo de problema em seleção ou integração.`});
+    }
+    if(s.trend !== null && s.trend <= -15){
+      insights.push({level:'med', text:`<b>${s.storeKey}</b> caiu ${Math.abs(Math.round(s.trend))} pontos percentuais de fechamento desde o início do ano — tendência de piora.`});
+    }
+    if(s.trend !== null && s.trend >= 15 && s.currentPct >= 95){
+      insights.push({level:'ok', text:`<b>${s.storeKey}</b> evoluiu ${Math.round(s.trend)} p.p. no ano e está com ${Math.round(s.currentPct)}% do quadro — recuperação consistente.`});
+    }
+  });
+  const insightsEl = document.getElementById('diagInsights');
+  if(!insights.length){
+    insightsEl.innerHTML = `<div class="insight-item insight-ok"><span class="dot dot-green"></span><span>Nenhum ponto de alerta identificado nas lojas filtradas para esta competência. Quadros estáveis.</span></div>`;
+  } else {
+    const order = {high:0, med:1, ok:2};
+    insights.sort((a,b)=>order[a.level]-order[b.level]);
+    insightsEl.innerHTML = insights.map(i=>`
+      <div class="insight-item insight-${i.level}">
+        <span class="dot ${i.level==='ok'?'dot-green':'dot-orange'}"></span>
+        <span>${i.text}</span>
+      </div>
+    `).join('');
+  }
+
+  // ---- Tabela de eficiência de gestão ----
+  const mgrEl = document.getElementById('diagManagerTable');
+  let mgrHead = `<thead><tr>
+    <th style="text-align:left;padding-left:12px;">LOJA</th>
+    <th>% Quadro Atual</th>
+    <th>% Médio ${year}</th>
+    <th>Tendência no Ano</th>
+    <th>Admissões</th>
+    <th>Demissões</th>
+    <th>Saldo</th>
+    <th>% Saídas &lt; 3 meses</th>
+  </tr></thead>`;
+  let mgrBody = '<tbody>';
+  const mgrSorted = [...storeData].sort((a,b)=>{
+    const av = a.avgPct===null ? 999 : a.avgPct;
+    const bv = b.avgPct===null ? 999 : b.avgPct;
+    return av - bv;
+  });
+  mgrSorted.forEach(s=>{
+    const saldo = s.adm - s.dem;
+    const saldoCls = saldo>0?'real-ok':(saldo<0?'real-bad':'');
+    let trendCell = '<span class="trend-flat">—</span>';
+    if(s.trend !== null){
+      const t = Math.round(s.trend);
+      if(t > 2) trendCell = `<span class="trend-up">▲ +${t} p.p.</span>`;
+      else if(t < -2) trendCell = `<span class="trend-down">▼ ${t} p.p.</span>`;
+      else trendCell = `<span class="trend-flat">▬ estável</span>`;
+    }
+    const earlyCell = s.earlyPct===null ? '–' :
+      `<span class="${s.earlyPct>=40?'real-bad':(s.earlyPct<=15?'real-ok':'')}">${Math.round(s.earlyPct)}%</span>`;
+    mgrBody += `<tr>
+      <td class="loja-cell">${s.storeKey}</td>
+      <td class="${s.currentPct!==null && s.currentPct>=100?'real-ok':(s.currentPct!==null && s.currentPct<85?'real-bad':'')}">${s.currentPct===null?'–':Math.round(s.currentPct)+'%'}</td>
+      <td>${s.avgPct===null?'–':Math.round(s.avgPct)+'%'}</td>
+      <td>${trendCell}</td>
+      <td>${s.adm}</td>
+      <td>${s.dem}</td>
+      <td class="${saldoCls}">${saldo>0?'+':''}${saldo}</td>
+      <td>${earlyCell}</td>
+    </tr>`;
+  });
+  mgrBody += '</tbody>';
+  mgrEl.innerHTML = mgrHead + mgrBody;
 }
 
 /* =========================================================
@@ -1764,6 +2136,7 @@ function openAdjustModal(type){
         el.classList.toggle('excluded', !cb.checked);
         refreshCount();
         recalcTurnover(); // atualiza KPIs e gráficos em tempo real
+        recalcDiagnostico();
       });
     });
   }
@@ -1772,11 +2145,13 @@ function openAdjustModal(type){
     list.forEach(i=>exclSet.delete(i.key));
     renderList();
     recalcTurnover();
+    recalcDiagnostico();
   };
   overlay.querySelector('[data-action=none]').onclick = ()=>{
     list.forEach(i=>exclSet.add(i.key));
     renderList();
     recalcTurnover();
+    recalcDiagnostico();
   };
 
   function close(){ overlay.remove(); }
