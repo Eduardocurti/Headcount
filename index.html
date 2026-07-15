@@ -479,6 +479,7 @@ const state = {
   selectedMonth: null,
   selectedStores: new Set(STORE_KEYS),
   sortDir: null, // null | 'asc' | 'desc'
+  diagSortDir: null, // ordenação do heatmap pela coluna Média: null | 'asc' | 'desc'
   activeTab: 'headcount',
   excludedAdm: new Set(), // eventos de admissão desconsiderados no turnover
   excludedDem: new Set(), // eventos de demissão desconsiderados no turnover
@@ -1163,9 +1164,17 @@ function renderDashboardShell(){
         </div>
       </div>
 
-      <div class="card" style="padding:20px;margin-bottom:16px;">
-        <h3 style="margin:0 0 4px;font-size:16px;">Evolução do Fechamento do Quadro — <span id="diagYearLabel"></span></h3>
-        <p class="chart-sub" style="margin:0 0 14px;">% de atingimento (Real ÷ Meta) por loja, mês a mês, até a competência selecionada</p>
+      <div class="card" style="padding:20px;margin-bottom:16px;" id="diagHeatmapCard">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0 0 4px;font-size:16px;">Evolução do Fechamento do Quadro — <span id="diagYearLabel"></span></h3>
+            <p class="chart-sub" style="margin:0;">% de atingimento (Real ÷ Meta) por loja, mês a mês, até a competência selecionada</p>
+          </div>
+          <div class="diag-actions" style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" id="btnSortMedia">⇅ Ordenar por Média</button>
+            <button class="btn btn-secondary" id="btnExportHeatmap">⬇ Exportar como imagem</button>
+          </div>
+        </div>
         <div class="table-scroll">
           <table class="heatmap-table" id="diagHeatmap"></table>
         </div>
@@ -1184,9 +1193,16 @@ function renderDashboardShell(){
         <div id="diagInsights"></div>
       </div>
 
-      <div class="card" style="padding:20px;">
-        <h3 style="margin:0 0 4px;font-size:16px;">Eficiência de Gestão por Loja — Contratação e Retenção <span id="diagYearLabel2"></span></h3>
-        <p class="chart-sub" style="margin:0 0 14px;">Acumulado do ano até a competência selecionada · ordenado do mais crítico ao melhor fechamento</p>
+      <div class="card" style="padding:20px;" id="diagMgrCard">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0 0 4px;font-size:16px;">Eficiência de Gestão por Loja — Contratação e Retenção <span id="diagYearLabel2"></span></h3>
+            <p class="chart-sub" style="margin:0;">Acumulado do ano até a competência selecionada · ordenado do mais crítico ao melhor fechamento</p>
+          </div>
+          <div class="diag-actions" style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" id="btnExportMgr">⬇ Exportar como imagem</button>
+          </div>
+        </div>
         <div class="table-scroll">
           <table class="mgr-table" id="diagManagerTable"></table>
         </div>
@@ -1254,6 +1270,17 @@ function renderDashboardShell(){
   document.getElementById('btnGerarBase').onclick = gerarBaseAtivos;
   document.getElementById('btnAdjustAdm').onclick = ()=>openAdjustModal('adm');
   document.getElementById('btnAdjustDem').onclick = ()=>openAdjustModal('dem');
+
+  document.getElementById('btnSortMedia').onclick = ()=>{
+    if(state.diagSortDir === null) state.diagSortDir = 'asc';
+    else if(state.diagSortDir === 'asc') state.diagSortDir = 'desc';
+    else state.diagSortDir = null;
+    updateDiagSortLabel();
+    recalcDiagnostico();
+  };
+  updateDiagSortLabel();
+  document.getElementById('btnExportHeatmap').onclick = ()=>exportDiagCard('diagHeatmapCard','btnExportHeatmap','Evolução do Fechamento do Quadro','EvolucaoQuadro');
+  document.getElementById('btnExportMgr').onclick = ()=>exportDiagCard('diagMgrCard','btnExportMgr','Eficiência de Gestão por Loja — Contratação e Retenção','EficienciaGestao');
 
   document.getElementById('btnSortDif').onclick = ()=>{
     if(state.sortDir === null) state.sortDir = 'desc';
@@ -1969,8 +1996,14 @@ function recalcDiagnostico(){
   monthsArr.forEach(m=>{ head += `<th>${MONTH_ABBR[m]}</th>`; });
   head += '<th>MÉDIA</th></tr></thead>';
   let body = '<tbody>';
-  // Ordena do pior % atual para o melhor (ofensores no topo)
+  // Padrão: ordena do pior % atual para o melhor (ofensores no topo).
+  // Se o usuário acionou a ordenação por Média, usa a coluna Média.
   const sorted = [...storeData].sort((a,b)=>{
+    if(state.diagSortDir){
+      const am = a.avgPct===null ? (state.diagSortDir==='asc'?999:-1) : a.avgPct;
+      const bm = b.avgPct===null ? (state.diagSortDir==='asc'?999:-1) : b.avgPct;
+      return state.diagSortDir==='asc' ? am - bm : bm - am;
+    }
     const av = a.currentPct===null ? 999 : a.currentPct;
     const bv = b.currentPct===null ? 999 : b.currentPct;
     return av - bv;
@@ -2061,6 +2094,71 @@ function recalcDiagnostico(){
   });
   mgrBody += '</tbody>';
   mgrEl.innerHTML = mgrHead + mgrBody;
+}
+
+function updateDiagSortLabel(){
+  const btn = document.getElementById('btnSortMedia');
+  if(!btn) return;
+  if(state.diagSortDir === 'asc') btn.innerHTML = '↑ Média: menor → maior';
+  else if(state.diagSortDir === 'desc') btn.innerHTML = '↓ Média: maior → menor';
+  else btn.innerHTML = '⇅ Ordenar por Média';
+}
+
+// Exporta um card do diagnóstico como PNG, expandindo tabelas com scroll para captura completa
+async function exportDiagCard(cardId, btnId, title, filePrefix){
+  const btn = document.getElementById(btnId);
+  const card = document.getElementById(cardId);
+  if(!btn || !card) return;
+  const originalLabel = btn.textContent;
+  btn.textContent = '⏳ Gerando...';
+  btn.disabled = true;
+
+  // Esconde os botões de ação durante a captura
+  const actions = card.querySelectorAll('.diag-actions');
+  actions.forEach(a=>a.style.visibility='hidden');
+
+  // Expande a área de scroll para capturar a tabela inteira
+  const scrollEl = card.querySelector('.table-scroll');
+  const table = scrollEl ? scrollEl.querySelector('table') : null;
+  const prevOverflow = scrollEl ? scrollEl.style.overflow : '';
+  const prevCardWidth = card.style.width;
+  if(scrollEl && table){
+    scrollEl.style.overflow = 'visible';
+    const needed = table.scrollWidth + 40; // padding do card
+    if(needed > card.offsetWidth) card.style.width = needed + 'px';
+  }
+
+  // Cabeçalho verde temporário
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'background:#0A6B2C;color:#fff;padding:16px 20px;border-radius:14px 14px 0 0;margin:-20px -20px 16px;';
+  hdr.innerHTML = `
+    <div style="font-size:17px;font-weight:700;font-family:'DM Sans',sans-serif;">${title}</div>
+    <div style="font-size:12px;opacity:.85;margin-top:3px;font-family:'DM Sans',sans-serif;">
+      ${fmtMonth(state.selectedMonth.year, state.selectedMonth.month)} · gerado em ${fmtDateBR(new Date())} · Painel de Gente Cabana
+    </div>`;
+  card.prepend(hdr);
+
+  try{
+    await new Promise(r=>setTimeout(r, 80));
+    const canvas = await html2canvas(card, {scale:2, backgroundColor:'#ffffff'});
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2,'0');
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const link = document.createElement('a');
+    link.download = `${filePrefix}_${dd}-${mm}-${now.getFullYear()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }catch(err){
+    console.error(err);
+    alert('Não foi possível gerar a imagem.');
+  }finally{
+    hdr.remove();
+    if(scrollEl){ scrollEl.style.overflow = prevOverflow; }
+    card.style.width = prevCardWidth;
+    actions.forEach(a=>a.style.visibility='');
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+  }
 }
 
 /* =========================================================
